@@ -10,7 +10,7 @@ def test_build_ffmpeg_command():
         "-i", "/tmp/video.mp4",
         "-i", "/tmp/audio.wav",
         "-shortest",
-        "-c:v", "libx264",
+        "-c:v", "h264_videotoolbox",
         "-c:a", "aac",
         "-b:a", "192k",
         "/tmp/output.mp4",

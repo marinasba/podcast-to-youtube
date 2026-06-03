@@ -25,7 +25,7 @@ def build_ffmpeg_command(video_path: str, audio_path: str, output_path: str) -> 
         "-i", video_path,
         "-i", audio_path,
         "-shortest",
-        "-c:v", "libx264",
+        "-c:v", "h264_videotoolbox",
         "-c:a", "aac",
         "-b:a", "192k",
         output_path,
