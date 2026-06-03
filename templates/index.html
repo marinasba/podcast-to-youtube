@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Podcast → YouTube</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Podcast → YouTube</h1>
+        <p class="subtitle">Combine ta mini vidéo en boucle avec ton audio podcast</p>
+
+        <div id="upload-section">
+            <div class="file-input">
+                <label for="video">Mini vidéo (MP4)</label>
+                <input type="file" id="video" accept=".mp4">
+                <span class="file-name" id="video-name">Aucun fichier</span>
+            </div>
+
+            <div class="file-input">
+                <label for="audio">Piste audio (WAV, MP3)</label>
+                <input type="file" id="audio" accept=".wav,.mp3">
+                <span class="file-name" id="audio-name">Aucun fichier</span>
+            </div>
+
+            <button id="generate-btn" disabled>Générer la vidéo</button>
+        </div>
+
+        <div id="progress-section" style="display:none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <p id="progress-text">0%</p>
+        </div>
+
+        <div id="done-section" style="display:none;">
+            <p class="success">Vidéo prête !</p>
+            <button id="download-btn">Télécharger</button>
+            <button id="reset-btn" class="secondary">Nouvelle vidéo</button>
+        </div>
+
+        <div id="error-section" style="display:none;">
+            <p class="error" id="error-text"></p>
+            <button id="retry-btn" class="secondary">Réessayer</button>
+        </div>
+    </div>
+
+    <script>
+        const videoInput = document.getElementById("video");
+        const audioInput = document.getElementById("audio");
+        const videoName = document.getElementById("video-name");
+        const audioName = document.getElementById("audio-name");
+        const generateBtn = document.getElementById("generate-btn");
+        const progressSection = document.getElementById("progress-section");
+        const progressFill = document.getElementById("progress-fill");
+        const progressText = document.getElementById("progress-text");
+        const uploadSection = document.getElementById("upload-section");
+        const doneSection = document.getElementById("done-section");
+        const errorSection = document.getElementById("error-section");
+        const errorText = document.getElementById("error-text");
+        const downloadBtn = document.getElementById("download-btn");
+        const resetBtn = document.getElementById("reset-btn");
+        const retryBtn = document.getElementById("retry-btn");
+
+        let currentJobId = null;
+
+        function updateButtonState() {
+            generateBtn.disabled = !(videoInput.files.length && audioInput.files.length);
+        }
+
+        videoInput.addEventListener("change", () => {
+            videoName.textContent = videoInput.files[0]?.name || "Aucun fichier";
+            updateButtonState();
+        });
+
+        audioInput.addEventListener("change", () => {
+            audioName.textContent = audioInput.files[0]?.name || "Aucun fichier";
+            updateButtonState();
+        });
+
+        function showSection(section) {
+            uploadSection.style.display = "none";
+            progressSection.style.display = "none";
+            doneSection.style.display = "none";
+            errorSection.style.display = "none";
+            section.style.display = "block";
+        }
+
+        function resetUI() {
+            videoInput.value = "";
+            audioInput.value = "";
+            videoName.textContent = "Aucun fichier";
+            audioName.textContent = "Aucun fichier";
+            generateBtn.disabled = true;
+            progressFill.style.width = "0%";
+            progressText.textContent = "0%";
+            showSection(uploadSection);
+        }
+
+        generateBtn.addEventListener("click", async () => {
+            const formData = new FormData();
+            formData.append("video", videoInput.files[0]);
+            formData.append("audio", audioInput.files[0]);
+
+            showSection(progressSection);
+
+            try {
+                const response = await fetch("/generate", { method: "POST", body: formData });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    const msg = data.errors ? data.errors.join(", ") : data.error;
+                    throw new Error(msg);
+                }
+
+                currentJobId = data.job_id;
+                pollProgress();
+            } catch (e) {
+                errorText.textContent = e.message;
+                showSection(errorSection);
+            }
+        });
+
+        async function pollProgress() {
+            try {
+                const response = await fetch(`/status/${currentJobId}`);
+                const data = await response.json();
+
+                if (data.status === "processing") {
+                    progressFill.style.width = data.progress + "%";
+                    progressText.textContent = Math.round(data.progress) + "%";
+                    setTimeout(pollProgress, 1000);
+                } else if (data.status === "done") {
+                    progressFill.style.width = "100%";
+                    progressText.textContent = "100%";
+                    showSection(doneSection);
+                } else if (data.status === "error") {
+                    errorText.textContent = data.error;
+                    showSection(errorSection);
+                }
+            } catch (e) {
+                errorText.textContent = "Erreur de connexion";
+                showSection(errorSection);
+            }
+        }
+
+        downloadBtn.addEventListener("click", () => {
+            window.location.href = `/download/${currentJobId}`;
+        });
+
+        resetBtn.addEventListener("click", resetUI);
+        retryBtn.addEventListener("click", resetUI);
+    </script>
+</body>
+</html>
